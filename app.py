@@ -83,6 +83,28 @@ elif section == "Exploratory Data Analysis":
     plt.tight_layout()
     st.pyplot(fig)
 
+    # Time Series of All Variables
+    st.subheader("Time Series of All Variables")
+    fig, ax = plt.subplots(figsize=(12, 6))
+    for column in lake.columns:
+        ax.plot(lake.index, lake[column], label=column)
+    ax.set_title("Time Series of All Variables")
+    ax.legend()
+    st.pyplot(fig)
+
+    # Distribution of Variables
+    st.subheader("Distribution of Variables")
+    num_vars = len(lake.columns)
+    fig, axes = plt.subplots(nrows=(num_vars + 1) // 2, ncols=2, figsize=(12, 6 * ((num_vars + 1) // 2)))
+    axes = axes.flatten()
+    for i, column in enumerate(lake.columns):
+        axes[i].hist(lake[column].dropna(), bins=30, color='#1E90FF', edgecolor='black')
+        axes[i].set_title(f'Distribution of {column}')
+        axes[i].set_xlabel(column)
+        axes[i].set_ylabel('Frequency')
+    plt.tight_layout()
+    st.pyplot(fig)
+
     # Missing values heatmap
     st.subheader("Missing Values Heatmap")
     fig, ax = plt.subplots(figsize=(10, 4))
@@ -135,7 +157,11 @@ elif section == "ARIMA Models":
     forecast_lvl = model_lvl.forecast(steps=len(test_lvl))
     forecast_lvl = pd.Series(forecast_lvl, index=test_lvl.index)
     mae_lvl = mean_absolute_error(test_lvl, forecast_lvl)
-    rmse_lvl = mean_squared_error(test_lvl, forecast_lvl, squared=False)
+    import sklearn
+    if sklearn.__version__ >= '0.22':
+        rmse_lvl = mean_squared_error(test_lvl, forecast_lvl, squared=False)  # RMSE diretto
+    else:
+        rmse_lvl = np.sqrt(mean_squared_error(test_lvl, forecast_lvl))  # Calcolo manuale per versioni vecchie
     st.write(f"MAE: {mae_lvl:.3f}  RMSE: {rmse_lvl:.3f}")
     fig, ax = plt.subplots(figsize=(12, 4))
     ax.plot(train_lvl, label="Train")
@@ -151,7 +177,10 @@ elif section == "ARIMA Models":
     forecast_fr = model_fr.forecast(steps=len(test_fr))
     forecast_fr = pd.Series(forecast_fr, index=test_fr.index)
     mae_fr = mean_absolute_error(test_fr, forecast_fr)
-    rmse_fr = mean_squared_error(test_fr, forecast_fr, squared=False)
+    if sklearn.__version__ >= '0.22':
+        rmse_fr = mean_squared_error(test_fr, forecast_fr, squared=False)
+    else:
+        rmse_fr = np.sqrt(mean_squared_error(test_fr, forecast_fr))
     st.write(f"MAE: {mae_fr:.3f}  RMSE: {rmse_fr:.3f}")
     fig, ax = plt.subplots(figsize=(12, 4))
     ax.plot(train_fr, label="Train")
@@ -195,7 +224,10 @@ elif section == "SARIMAX Model":
     y_hat = pred.predicted_mean
     ci = pred.conf_int()
     mae = mean_absolute_error(y_te, y_hat)
-    rmse = mean_squared_error(y_te, y_hat, squared=False)
+    if sklearn.__version__ >= '0.22':
+        rmse = mean_squared_error(y_te, y_hat, squared=False)
+    else:
+        rmse = np.sqrt(mean_squared_error(y_te, y_hat))
     r2 = r2_score(y_te, y_hat)
     st.write(f"MAE: {mae:.3f}  RMSE: {rmse:.3f}  R²: {r2:.3f}")
     fig, ax = plt.subplots(figsize=(11, 4))
@@ -225,7 +257,10 @@ elif section == "XGBoost Models":
     xgb_lvl.fit(X_train, y_lvl_train)
     y_pred_lvl = xgb_lvl.predict(X_test)
     mae_xgb = mean_absolute_error(y_lvl_test, y_pred_lvl)
-    rmse_xgb = np.sqrt(mean_squared_error(y_lvl_test, y_pred_lvl))
+    if sklearn.__version__ >= '0.22':
+        rmse_xgb = mean_squared_error(y_lvl_test, y_pred_lvl, squared=False)
+    else:
+        rmse_xgb = np.sqrt(mean_squared_error(y_lvl_test, y_pred_lvl))
     r2_xgb = r2_score(y_lvl_test, y_pred_lvl)
     st.write(f"MAE: {mae_xgb:.3f}  RMSE: {rmse_xgb:.3f}  R²: {r2_xgb:.3f}")
     fig, ax = plt.subplots(figsize=(12, 4))
@@ -249,7 +284,10 @@ elif section == "XGBoost Models":
     xgb_fr.fit(X_train, y_fr_train)
     y_fr_pred = xgb_fr.predict(X_test)
     mae_fr = mean_absolute_error(y_fr_test, y_fr_pred)
-    rmse_fr = np.sqrt(mean_squared_error(y_fr_test, y_fr_pred))
+    if sklearn.__version__ >= '0.22':
+        rmse_fr = mean_squared_error(y_fr_test, y_fr_pred, squared=False)
+    else:
+        rmse_fr = np.sqrt(mean_squared_error(y_fr_test, y_fr_pred))
     st.write(f"MAE: {mae_fr:.3f}  RMSE: {rmse_fr:.3f}")
     fig, ax = plt.subplots(figsize=(12, 4))
     ax.plot(y_fr_train, label="Train")
@@ -434,14 +472,15 @@ elif section == "Forecasting":
     st.pyplot(fig)
 
 # Model Comparison
-st.header("Model Comparison")
-results = {
-    "Target": ["Lake_Level", "Lake_Level", "Lake_Level", "Flow_Rate", "Flow_Rate"],
-    "Model": ["ARIMA(1,0,0)", "SARIMAX", "XGBRegressor", "ARIMA(1,0,1)", "XGBRegressor"],
-    "MAE": [1.9, 1.054, 1.518, 2.9, 2.52],
-    "RMSE": [2.45, 1.316, 1.77, 4.4, 4.048]
-}
-df_results = pd.DataFrame(results)
-st.dataframe(df_results.style.set_caption("Model Comparison — Lake_Level and Flow_Rate")
-             .format({"MAE": "{:.3f}", "RMSE": "{:.3f}"})
-             .background_gradient(subset=["MAE", "RMSE"], cmap="Blues"))
+elif section == "Model Comparison":
+    st.header("Model Comparison")
+    results = {
+        "Target": ["Lake_Level", "Lake_Level", "Lake_Level", "Flow_Rate", "Flow_Rate"],
+        "Model": ["ARIMA(1,0,0)", "SARIMAX", "XGBRegressor", "ARIMA(1,0,1)", "XGBRegressor"],
+        "MAE": [1.9, 1.054, 1.518, 2.9, 2.52],
+        "RMSE": [2.45, 1.316, 1.77, 4.4, 4.048]
+    }
+    df_results = pd.DataFrame(results)
+    st.dataframe(df_results.style.set_caption("Model Comparison — Lake_Level and Flow_Rate")
+                 .format({"MAE": "{:.3f}", "RMSE": "{:.3f}"})
+                 .background_gradient(subset=["MAE", "RMSE"], cmap="Blues"))
